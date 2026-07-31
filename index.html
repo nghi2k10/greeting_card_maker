@@ -17,6 +17,22 @@
                 <input type="file" id="imageUpload" accept="image/*">
             </div>
 
+            <!-- Thêm khu vực Thư viện mẫu -->
+            <div class="control-group">
+                <label>Thư viện phôi ảnh có sẵn:</label>
+                <div class="template-gallery">
+                    <!-- Ảnh 1: Meme mèo -->
+                    <img src="https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=400&h=400&fit=crop" alt="Meme mèo" class="template-img" crossorigin="anonymous">
+                    
+                    <!-- Ảnh 2: Phôi thiệp 20-11 (Minh họa bằng ảnh hoa) -->
+                    <img src="https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=400&h=400&fit=crop" alt="Thiệp 20-11" class="template-img" crossorigin="anonymous">
+                    
+                    <img src="https://res.cloudinary.com/dzcqjjkf7/image/upload/v1785469765/C%E1%BB%99ng_L%C3%BD_e3esxj.jpg" alt="Meme1" class="template-img" crossorigin="anonymous">
+
+                    <img src="https://res.cloudinary.com/dzcqjjkf7/image/upload/v1785469864/Ch%E1%BB%8B_Phi%E1%BA%BFn_t8twpy.png" alt="Meme2" class="template-img" crossorigin="anonymous">
+                </div>
+            </div>
+
             <div class="control-group">
                 <label for="textInput">2. Nhập nội dung chữ:</label>
                 <input type="text" id="textInput" value="YOUR NAME" placeholder="Nhập nội dung vào đây...">
@@ -44,6 +60,18 @@
                     <label for="fontSize">Kích thước (px):</label>
                     <!-- Tăng giới hạn max lên 2000 để dùng cho ảnh chất lượng cao -->
                     <input type="number" id="fontSize" value="60" min="10" max="2000" step="10">
+                </div>
+            </div>
+
+            <!-- Thêm cụm công cụ chỉnh Viền chữ -->
+            <div class="control-group row">
+                <div class="half">
+                    <label for="strokeColor">Màu viền:</label>
+                    <input type="color" id="strokeColor" value="#000000"> <!-- Mặc định viền đen -->
+                </div>
+                <div class="half">
+                    <label for="strokeWidth">Độ dày viền:</label>
+                    <input type="number" id="strokeWidth" value="4" min="0" max="30">
                 </div>
             </div>
 

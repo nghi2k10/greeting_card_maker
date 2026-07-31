@@ -136,3 +136,36 @@ canvas {
     color: #6c757d;
     font-size: 0.9rem;
 }
+
+/* Thư viện phôi ảnh */
+.template-gallery {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto; /* Cho phép cuộn ngang nếu có quá nhiều ảnh */
+    padding-bottom: 8px; /* Tránh thanh cuộn che mất ảnh */
+}
+
+/* Tùy chỉnh thanh cuộn cho đẹp (chỉ áp dụng trên các trình duyệt lõi webkit) */
+.template-gallery::-webkit-scrollbar {
+    height: 6px;
+}
+.template-gallery::-webkit-scrollbar-thumb {
+    background-color: #ccc;
+    border-radius: 4px;
+}
+
+.template-img {
+    width: 80px;
+    height: 80px;
+    object-fit: cover; /* Cắt cúp ảnh vuông vức gọn gàng */
+    border-radius: 8px;
+    cursor: pointer;
+    border: 3px solid transparent;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.template-img:hover {
+    border-color: #3498db; /* Đổi màu viền khi hover */
+    transform: translateY(-2px); /* Nổi nhẹ lên */
+}

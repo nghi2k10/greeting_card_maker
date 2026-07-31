@@ -8,6 +8,8 @@ const fontSizeInput = document.getElementById('fontSize');
 // Thêm dòng này vào phần 1 (Lấy các phần tử DOM)
 const fontFamilyInput = document.getElementById('fontFamily');
 const textDirectionInputs = document.querySelectorAll('input[name="textDirection"]');
+const strokeColorInput = document.getElementById('strokeColor');
+const strokeWidthInput = document.getElementById('strokeWidth');
 
 // 2. Trạng thái toàn cục (STATE)
 
@@ -23,6 +25,8 @@ let textState = {
     fontSize: "60",
     fontFamily: fontFamilyInput.value, // <--- Cập nhật dòng này
     direction: "horizontal", // Thêm dòng này: Mặc định là nằm ngang
+    strokeColor: "#000000", // Màu viền mặc định
+    strokeWidth: 4,         // Độ dày viền mặc định
     width: 0,
     height: 0
 };
@@ -49,49 +53,57 @@ function drawCanvas() {
     drawText();
 }
 
-// Hàm phụ để vẽ chữ
+// Hàm phụ để vẽ chữ (Đã nâng cấp có Viền)
 function drawText() {
-    if (!textState.content) return; // Không có chữ thì dừng
+    if (!textState.content) return;
 
+    // Cài đặt phông chữ và căn lề
     ctx.font = `${textState.fontSize}px ${textState.fontFamily}`;
-    ctx.fillStyle = textState.color;
     ctx.textBaseline = "top"; 
     
-    // Ép kiểu fontSize về số để dễ tính toán
+    // Cài đặt phong cách tô màu và vẽ viền
+    ctx.fillStyle = textState.color;
+    ctx.strokeStyle = textState.strokeColor;
+    ctx.lineWidth = textState.strokeWidth;
+    
+    // Bí quyết "ăn tiền": Làm tròn góc viền chữ để không bị sắc nhọn gai góc
+    ctx.lineJoin = 'round'; 
+
     const lineHeight = parseInt(textState.fontSize);
 
     if (textState.direction === 'horizontal') {
-        // --- XỬ LÝ CHỮ NẰM NGANG ---
+        // --- CHỮ NẰM NGANG ---
+        // Phải vẽ viền (strokeText) TRƯỚC, rồi mới tô màu (fillText) đè lên trên
+        // thì viền mới bung ra ngoài và không "ăn" mất độ dày của chữ
+        if (textState.strokeWidth > 0) {
+            ctx.strokeText(textState.content, textState.x, textState.y);
+        }
         ctx.fillText(textState.content, textState.x, textState.y);
         
-        // Cập nhật kích thước vùng chọn cho chữ ngang
         textState.width = ctx.measureText(textState.content).width;
         textState.height = lineHeight;
         
     } else {
-        // --- XỬ LÝ CHỮ NẰM DỌC ---
-        // Tách chuỗi thành mảng các chữ cái riêng biệt
+        // --- CHỮ NẰM DỌC ---
         const chars = textState.content.split('');
-        let maxWidth = 0; // Biến lưu chiều rộng của chữ cái to nhất
+        let maxWidth = 0;
 
-        // Duyệt qua từng chữ cái để vẽ
         chars.forEach((char, index) => {
-            // Tọa độ Y sẽ tăng dần theo từng dòng
             const charY = textState.y + (index * lineHeight);
+            
+            if (textState.strokeWidth > 0) {
+                ctx.strokeText(char, textState.x, charY);
+            }
             ctx.fillText(char, textState.x, charY);
 
-            // Tìm chiều rộng của chữ cái bự nhất để làm width cho vùng kéo thả
             const charWidth = ctx.measureText(char).width;
             if (charWidth > maxWidth) maxWidth = charWidth;
         });
 
-        // Cập nhật kích thước vùng chọn cho chữ dọc
         textState.width = maxWidth;
-        // Chiều cao bằng số lượng chữ cái nhân với chiều cao 1 dòng
         textState.height = chars.length * lineHeight; 
     }
 }
-
 
 // 4. Lắng nghe thay đổi từ các ô nhập liệu (Input Listeners)
 
@@ -124,6 +136,18 @@ textDirectionInputs.forEach(radio => {
         textState.direction = e.target.value;
         drawCanvas();
     });
+});
+
+// Khi đổi màu viền
+strokeColorInput.addEventListener('input', (e) => {
+    textState.strokeColor = e.target.value;
+    drawCanvas();
+});
+
+// Khi đổi độ dày viền
+strokeWidthInput.addEventListener('input', (e) => {
+    textState.strokeWidth = parseInt(e.target.value) || 0;
+    drawCanvas();
 });
 
 // 5. Tích hợp lại tính năng Tải ảnh lên (Sử dụng drawCanvas)
@@ -264,4 +288,34 @@ downloadBtn.addEventListener('click', function() {
     
     // 5. Giả lập hành động click chuột vào thẻ <a> ảo này để ép trình duyệt tải file
     link.click();
+});
+
+// --- LOGIC THƯ VIỆN PHÔI ẢNH ---
+
+// Lấy tất cả các ảnh trong thư viện
+const templateImages = document.querySelectorAll('.template-img');
+
+// Duyệt qua từng ảnh và thêm sự kiện click
+templateImages.forEach(imgElement => {
+    imgElement.addEventListener('click', function() {
+        // Tạo một đối tượng Image mới
+        const img = new Image();
+        
+        // Kích hoạt CORS để xử lý ảnh lấy từ domain khác (như Unsplash)
+        img.crossOrigin = "Anonymous";
+        
+        // Khi ảnh từ thư viện đã tải xong...
+        img.onload = function() {
+            // Ép kích thước Canvas bằng kích thước ảnh mẫu
+            canvas.width = img.width;
+            canvas.height = img.height;
+            
+            // Cập nhật biến nền và vẽ lại toàn bộ
+            backgroundImage = img;
+            drawCanvas();
+        };
+        
+        // Truyền đường link của ảnh người dùng vừa bấm vào đối tượng img
+        img.src = this.src;
+    });
 });
