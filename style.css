@@ -186,3 +186,11 @@ canvas {
 .sticker-btn:hover {
     transform: scale(1.1);
 }
+
+/* Hiệu ứng khi đang kéo thả file lơ lửng trên Canvas */
+.canvas-wrapper.drag-active canvas {
+    border: 3px dashed #3498db;
+    opacity: 0.7;
+    transform: scale(0.98); /* Hơi thu nhỏ lại một chút tạo cảm giác nhấn xuống */
+    transition: all 0.2s ease;
+}

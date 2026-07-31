@@ -53,18 +53,29 @@ function drawCanvas() {
 
     // 2. Vẽ tất cả sticker trong mảng
     stickers.forEach((st, index) => {
-        ctx.drawImage(st.image, st.x, st.y, st.width, st.height);
+        
+        ctx.save(); // Lưu lại hệ tọa độ gốc của Canvas
 
-        // NẾU sticker này đang được click chọn, ta sẽ vẽ khung viền cho nó
+        // Dời gốc tọa độ (0,0) vào chính TÂM của sticker hiện tại
+        ctx.translate(st.x + st.width / 2, st.y + st.height / 2);
+        
+        // Lật theo trục X nếu flipX là -1
+        ctx.scale(st.flipX, 1);
+
+        // Vẽ ảnh. Vì gốc tọa độ đã dời vào tâm, ta phải vẽ lùi lại một nửa chiều rộng/cao
+        ctx.drawImage(st.image, -st.width / 2, -st.height / 2, st.width, st.height);
+        
+        ctx.restore(); // Phục hồi lại hệ tọa độ gốc để không làm hỏng các bước vẽ sau
+
+
+        // NẾU sticker này đang được click chọn (Vẽ khung viền)
         if (index === selectedStickerIndex) {
-            // Vẽ viền đứt nét màu xanh dương
             ctx.strokeStyle = '#3498db'; 
             ctx.lineWidth = 2;
-            ctx.setLineDash([5, 5]); // Tạo nét đứt
+            ctx.setLineDash([5, 5]); 
             ctx.strokeRect(st.x, st.y, st.width, st.height);
-            ctx.setLineDash([]); // Trả lại nét liền kẻo ảnh hưởng tới các viền khác
+            ctx.setLineDash([]); 
 
-            // Vẽ ô vuông nhỏ ở góc Dưới - Phải để làm nút kéo giãn
             ctx.fillStyle = '#3498db';
             ctx.fillRect(
                 st.x + st.width - handleSize / 2, 
@@ -412,15 +423,15 @@ stickerBtns.forEach(btn => {
         const img = new Image();
         img.crossOrigin = "Anonymous";
         img.onload = function() {
-            // Khi tải xong, nhét sticker vào mảng
             stickers.push({
                 image: img,
-                x: canvas.width / 2 - 50, // Đặt ở giữa Canvas
+                x: canvas.width / 2 - 50,
                 y: canvas.height / 2 - 50,
-                width: 100,  // Kích thước mặc định của sticker
-                height: 100
+                width: 100,
+                height: 100,
+                flipX: 1 // THÊM DÒNG NÀY: 1 là bình thường, -1 là lật ngược
             });
-            drawCanvas(); // Vẽ lại để hiện sticker
+            drawCanvas(); 
         };
         img.src = this.src;
     });
@@ -481,4 +492,162 @@ document.addEventListener('keydown', function(e) {
             drawCanvas();
         }
     }
+
+    // --- LOGIC LẬT NGƯỢC STICKER/TÓC (Phím F) ---
+    if (e.key === 'f' || e.key === 'F') {
+        if (selectedStickerIndex !== -1) {
+            const st = stickers[selectedStickerIndex];
+            
+            // Nhân với -1 để đảo trạng thái: 1 thành -1, -1 thành 1
+            st.flipX *= -1; 
+            
+            drawCanvas();
+        }
+    }
+});
+
+// --- LOGIC KÉO THẢ FILE ẢNH TRỰC TIẾP VÀO CANVAS ---
+
+const canvasWrapper = document.querySelector('.canvas-wrapper');
+
+// 1. Ngăn chặn hành vi mặc định của trình duyệt (mở file ở tab mới)
+['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+    canvasWrapper.addEventListener(eventName, preventDefaults, false);
+});
+
+function preventDefaults(e) {
+    e.preventDefault();
+    e.stopPropagation();
+}
+
+// 2. Thêm hiệu ứng UI (viền đứt nét) khi kéo file lơ lửng vào khu vực Canvas
+['dragenter', 'dragover'].forEach(eventName => {
+    canvasWrapper.addEventListener(eventName, () => {
+        canvasWrapper.classList.add('drag-active');
+    }, false);
+});
+
+// 3. Xóa hiệu ứng UI khi kéo file ra ngoài hoặc đã thả file xong
+['dragleave', 'drop'].forEach(eventName => {
+    canvasWrapper.addEventListener(eventName, () => {
+        canvasWrapper.classList.remove('drag-active');
+    }, false);
+});
+
+// 4. Xử lý dữ liệu khi người dùng chính thức "Thả" (Drop) file
+canvasWrapper.addEventListener('drop', handleDrop, false);
+
+function handleDrop(e) {
+    // Lấy danh sách các file được thả vào (lấy file đầu tiên)
+    const dt = e.dataTransfer;
+    const file = dt.files[0];
+
+    // Kiểm tra xem có đúng là file hình ảnh không
+    if (!file || !file.type.startsWith('image/')) {
+        alert("Bồ ơi, chỉ được thả file hình ảnh (JPG, PNG...) vào đây thôi nhé!");
+        return;
+    }
+
+    // Tái sử dụng logic đọc file y hệt như lúc bấm nút Upload
+    const reader = new FileReader();
+    reader.onload = function(event) {
+        const img = new Image();
+        img.onload = function() {
+            canvas.width = img.width;
+            canvas.height = img.height;
+            backgroundImage = img;
+            drawCanvas(); // Vẽ lại ảnh nền mới
+        };
+        img.src = event.target.result;
+    };
+    // Tiến hành đọc file
+    reader.readAsDataURL(file);
+}
+
+// --- LOGIC ANIMATION & XUẤT VIDEO (MEDIA RECORDER) ---
+
+const recordBtn = document.getElementById('recordBtn');
+let isRecording = false; // Biến khóa để ngăn bấm nhiều lần lúc đang quay
+
+recordBtn.addEventListener('click', function() {
+    // Nếu đang quay rồi thì không cho bấm nữa
+    if (isRecording) return;
+    
+    isRecording = true;
+    recordBtn.innerText = "Đang quay phim...";
+    recordBtn.style.opacity = "0.7";
+
+    // 1. "Bắt" luồng hình ảnh từ Canvas với tốc độ 30 FPS (Khung hình/giây)
+    const stream = canvas.captureStream(30);
+    
+    // 2. Khởi tạo máy quay phim (MediaRecorder) với định dạng WebM
+    // (WebM là định dạng chuẩn của web, hỗ trợ cực tốt trên Chrome/Firefox)
+    const mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+    const recordedChunks = []; // Mảng chứa các mảnh dữ liệu video
+
+    // 3. Thu thập dữ liệu video mỗi khi máy quay nhả ra
+    mediaRecorder.ondataavailable = function(e) {
+        if (e.data.size > 0) {
+            recordedChunks.push(e.data);
+        }
+    };
+
+    // 4. Xử lý khi quay xong (Tạo file và tải về)
+    mediaRecorder.onstop = function() {
+        // Gom các mảnh dữ liệu thành 1 file video hoàn chỉnh
+        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+        const videoUrl = URL.createObjectURL(blob);
+        
+        // Tạo thẻ a ảo để tải video xuống (giống như tải ảnh)
+        const link = document.createElement('a');
+        link.href = videoUrl;
+        link.download = 'thiep-meme-dong.webm';
+        link.click();
+        
+        // Dọn dẹp bộ nhớ và khôi phục giao diện nút bấm
+        URL.revokeObjectURL(videoUrl);
+        isRecording = false;
+        recordBtn.innerText = "🎥 Xuất Video (Chuyển động 3s)";
+        recordBtn.style.opacity = "1";
+    };
+
+    // 5. BẤM MÁY QUAY!
+    mediaRecorder.start();
+
+    // 6. TẠO HIỆU ỨNG CHUYỂN ĐỘNG (ANIMATION)
+    const startTime = Date.now();
+    let animationFrameId;
+
+    function animate() {
+        const elapsedTime = Date.now() - startTime;
+
+        // --- HIỆU ỨNG NHẤP NHÔ (FLOATING) TẠI ĐÂY ---
+        // Lưu lại tọa độ Y ban đầu của chữ để không bị trôi mất
+        const originalY = textState.y;
+        
+        // Dùng hàm Lượng giác (Sin) để tạo dao động lên xuống mượt mà
+        // elapsedTime / 150: Kiểm soát tốc độ nhấp nhô
+        // * 15: Kiểm soát biên độ (độ cao nhấp nhô là 15 pixel)
+        textState.y = originalY + Math.sin(elapsedTime / 150) * 15;
+
+        // Vẽ lại Canvas với vị trí Y mới
+        drawCanvas(); 
+
+        // Trả lại tọa độ Y gốc ngay lập tức để vòng lặp sau tính toán không bị sai lệch
+        textState.y = originalY;
+
+        // Kiểm tra xem đã quay đủ 3 giây (3000 mili-giây) chưa?
+        if (elapsedTime < 3000) {
+            // Nếu chưa đủ, tiếp tục gọi lại hàm animate ở khung hình tiếp theo
+            animationFrameId = requestAnimationFrame(animate);
+        } else {
+            // Nếu đủ 3 giây rồi -> CẮT! (Dừng quay và dừng chuyển động)
+            mediaRecorder.stop();
+            cancelAnimationFrame(animationFrameId);
+            drawCanvas(); // Trả lại Canvas trạng thái tĩnh cuối cùng
+        }
+    }
+
+    // Bắt đầu vòng lặp chuyển động
+    animate();
 });
