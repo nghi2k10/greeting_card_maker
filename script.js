@@ -15,6 +15,9 @@ const strokeWidthInput = document.getElementById('strokeWidth');
 
 // Trạng thái ảnh nền
 let backgroundImage = null;
+let stickers = [];
+let selectedStickerIndex = -1; // Biến mới: Nhớ xem sticker nào đang được click chọn (-1 là không chọn gì)
+const handleSize = 12; // Kích thước của ô vuông dùng để kéo giãn
 
 // Trạng thái của đoạn chữ
 let textState = {
@@ -34,22 +37,45 @@ let textState = {
 // Trạng thái của hành động kéo thả
 let draggingState = {
     isDragging: false,
-    startX: 0, // Vị trí chuột lúc bắt đầu click
+    target: null, // Sẽ là 'text', 'sticker', hoặc 'resize-sticker'
+    stickerIndex: -1, 
+    startX: 0,
     startY: 0
 };
 
 
 // 3. Hàm cốt lõi: Vẽ lại toàn bộ Canvas
 function drawCanvas() {
-    // A. Xóa sạch Canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // B. Vẽ ảnh nền (nếu có)
-    if (backgroundImage) {
-        ctx.drawImage(backgroundImage, 0, 0);
-    }
+    // 1. Vẽ nền
+    if (backgroundImage) ctx.drawImage(backgroundImage, 0, 0);
 
-    // C. Vẽ chữ
+    // 2. Vẽ tất cả sticker trong mảng
+    stickers.forEach((st, index) => {
+        ctx.drawImage(st.image, st.x, st.y, st.width, st.height);
+
+        // NẾU sticker này đang được click chọn, ta sẽ vẽ khung viền cho nó
+        if (index === selectedStickerIndex) {
+            // Vẽ viền đứt nét màu xanh dương
+            ctx.strokeStyle = '#3498db'; 
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 5]); // Tạo nét đứt
+            ctx.strokeRect(st.x, st.y, st.width, st.height);
+            ctx.setLineDash([]); // Trả lại nét liền kẻo ảnh hưởng tới các viền khác
+
+            // Vẽ ô vuông nhỏ ở góc Dưới - Phải để làm nút kéo giãn
+            ctx.fillStyle = '#3498db';
+            ctx.fillRect(
+                st.x + st.width - handleSize / 2, 
+                st.y + st.height - handleSize / 2, 
+                handleSize, 
+                handleSize
+            );
+        }
+    });
+
+    // 3. Vẽ chữ (lên trên cùng)
     drawText();
 }
 
@@ -203,60 +229,118 @@ function isMouseOverText(mouseX, mouseY) {
 }
 
 // A. Mousedown: Khi người dùng click chuột xuống
+//--- LOGIC KÉO THẢ MỚI (CHỮ & STICKER) ---
+
 canvas.addEventListener('mousedown', function(e) {
     const mousePos = getRelativeMouseCoords(e);
     
-    // Kiểm tra xem có click trúng chữ không
+    // Ưu tiên 0: Kéo giãn (Resize) - Kiểm tra xem có đang bấm vào ô vuông của sticker đang chọn không
+    if (selectedStickerIndex !== -1) {
+        const st = stickers[selectedStickerIndex];
+        // Tính tọa độ của ô vuông góc dưới bên phải
+        const handleX = st.x + st.width - handleSize / 2;
+        const handleY = st.y + st.height - handleSize / 2;
+
+        if (mousePos.x >= handleX && mousePos.x <= handleX + handleSize &&
+            mousePos.y >= handleY && mousePos.y <= handleY + handleSize) {
+            
+            draggingState.isDragging = true;
+            draggingState.target = 'resize-sticker'; // Chuyển sang chế độ bóp méo
+            draggingState.startX = mousePos.x;
+            draggingState.startY = mousePos.y;
+            return; // Dừng, không kiểm tra click di chuyển nữa
+        }
+    }
+
+    // Ưu tiên 1: Chữ
     if (isMouseOverText(mousePos.x, mousePos.y)) {
+        selectedStickerIndex = -1; // Bỏ chọn sticker để ẩn khung viền
         draggingState.isDragging = true;
-        
-        // Lưu lại vị trí chuột lúc click để tính độ chênh lệch
+        draggingState.target = 'text';
         draggingState.startX = mousePos.x;
         draggingState.startY = mousePos.y;
-
-        // Đổi con trỏ chuột thành hình 'bàn tay đang nắm'
         canvas.style.cursor = 'grabbing';
+        drawCanvas();
+        return; 
     }
+
+    // Ưu tiên 2: Di chuyển Sticker
+    for (let i = stickers.length - 1; i >= 0; i--) {
+        let st = stickers[i];
+        if (mousePos.x >= st.x && mousePos.x <= st.x + st.width && 
+            mousePos.y >= st.y && mousePos.y <= st.y + st.height) {
+            
+            selectedStickerIndex = i; // Đánh dấu sticker này đang được chọn
+            draggingState.isDragging = true;
+            draggingState.target = 'sticker';
+            draggingState.stickerIndex = i; 
+            draggingState.startX = mousePos.x;
+            draggingState.startY = mousePos.y;
+            canvas.style.cursor = 'grabbing';
+            drawCanvas(); // Vẽ lại để hiện khung viền đứt nét lập tức
+            return; 
+        }
+    }
+
+    // Nếu bấm ra vùng trống (không trúng chữ, không trúng sticker)
+    selectedStickerIndex = -1; // Tắt khung viền
+    drawCanvas();
 });
 
-// B. Mousemove: Khi người dùng di chuyển chuột
 canvas.addEventListener('mousemove', function(e) {
     const mousePos = getRelativeMouseCoords(e);
 
-    // Xử lý logic Đổi con trỏ chuột khi đi qua chữ
-    if (isMouseOverText(mousePos.x, mousePos.y)) {
-        if (!draggingState.isDragging) {
-            canvas.style.cursor = 'grab'; // Con trỏ bàn tay mở
-        }
-    } else {
-        if (!draggingState.isDragging) {
-            canvas.style.cursor = 'default'; // Con trỏ mặc định
+    // -- Logic đổi hình con trỏ chuột --
+    if (selectedStickerIndex !== -1 && !draggingState.isDragging) {
+        const st = stickers[selectedStickerIndex];
+        const handleX = st.x + st.width - handleSize / 2;
+        const handleY = st.y + st.height - handleSize / 2;
+        
+        // Đổi thành mũi tên chéo khi rê chuột vào ô vuông kéo giãn
+        if (mousePos.x >= handleX && mousePos.x <= handleX + handleSize &&
+            mousePos.y >= handleY && mousePos.y <= handleY + handleSize) {
+            canvas.style.cursor = 'nwse-resize'; 
+        } else {
+            canvas.style.cursor = 'default';
         }
     }
 
-    // Xử lý logic kéo thả chính
+    // -- Logic Xử lý khi đang giữ chuột kéo --
     if (draggingState.isDragging) {
-        // Tính độ chênh lệch di chuyển
         const deltaX = mousePos.x - draggingState.startX;
         const deltaY = mousePos.y - draggingState.startY;
 
-        // Cập nhật tọa độ (x, y) mới cho chữ
-        textState.x += deltaX;
-        textState.y += deltaY;
+        if (draggingState.target === 'text') {
+            textState.x += deltaX;
+            textState.y += deltaY;
+        } 
+        else if (draggingState.target === 'sticker') {
+            const st = stickers[draggingState.stickerIndex];
+            st.x += deltaX;
+            st.y += deltaY;
+        } 
+        else if (draggingState.target === 'resize-sticker') {
+            // ĐÂY LÀ CHỖ KÉO GIÃN KÍCH THƯỚC
+            const st = stickers[selectedStickerIndex];
+            
+            st.width += deltaX;
+            st.height += deltaY;
+            
+            // Ép kích thước nhỏ nhất để hình không bị lộn ngược nếu đẩy chuột lố tay
+            if (st.width < 20) st.width = 20;
+            if (st.height < 20) st.height = 20;
+        }
 
-        // Cập nhật vị trí chuột cho lần di chuyển tiếp theo
         draggingState.startX = mousePos.x;
         draggingState.startY = mousePos.y;
-
-        // Vẽ lại toàn bộ Canvas với vị trí chữ mới
         drawCanvas();
     }
 });
 
-// C. Mouseup: Khi người dùng nhả chuột ra
 canvas.addEventListener('mouseup', function() {
     draggingState.isDragging = false;
-    // Không đổi cursor ở đây, để nó tự xử lý ở mousemove
+    draggingState.target = null;
+    canvas.style.cursor = 'default';
 });
 
 // D. Mouseleave: Khi người dùng di chuyển chuột ra khỏi canvas
@@ -318,4 +402,83 @@ templateImages.forEach(imgElement => {
         // Truyền đường link của ảnh người dùng vừa bấm vào đối tượng img
         img.src = this.src;
     });
+});
+
+// --- LOGIC THÊM STICKER ---
+const stickerBtns = document.querySelectorAll('.sticker-btn');
+
+stickerBtns.forEach(btn => {
+    btn.addEventListener('click', function() {
+        const img = new Image();
+        img.crossOrigin = "Anonymous";
+        img.onload = function() {
+            // Khi tải xong, nhét sticker vào mảng
+            stickers.push({
+                image: img,
+                x: canvas.width / 2 - 50, // Đặt ở giữa Canvas
+                y: canvas.height / 2 - 50,
+                width: 100,  // Kích thước mặc định của sticker
+                height: 100
+            });
+            drawCanvas(); // Vẽ lại để hiện sticker
+        };
+        img.src = this.src;
+    });
+});
+
+// --- LOGIC XÓA STICKER BẰNG PHÍM DELETE / BACKSPACE ---
+
+// Lắng nghe sự kiện nhấn phím trên toàn bộ trang web (document)
+document.addEventListener('keydown', function(e) {
+    // 1. Kiểm tra xem người dùng có đang gõ chữ vào các ô input không
+    // Nếu con trỏ chuột đang nháy trong thẻ <input> hoặc <select>, ta sẽ bỏ qua lệnh xóa này
+    const activeTag = document.activeElement.tagName.toLowerCase();
+    if (activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select') {
+        return; // Dừng hàm lại ngay
+    }
+
+    // 2. Kiểm tra xem phím được bấm có phải là Delete hoặc Backspace không
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+        
+        // 3. Kiểm tra xem có sticker nào đang được chọn (có khung viền) không
+        if (selectedStickerIndex !== -1) {
+            
+            // Dùng hàm splice để "cắt" sticker đó khỏi mảng
+            // Tham số đầu: vị trí bắt đầu cắt, Tham số hai: số lượng phần tử cần cắt (1 cái)
+            stickers.splice(selectedStickerIndex, 1);
+            
+            // Xóa xong thì phải "tắt" chế độ đang chọn sticker đi
+            selectedStickerIndex = -1;
+            
+            // Đề phòng trường hợp bồ vừa giữ chuột vừa bấm xóa
+            draggingState.isDragging = false;
+            draggingState.target = null;
+            canvas.style.cursor = 'default';
+            
+            // 4. Vẽ lại Canvas (lúc này mảng stickers đã mất đi 1 phần tử nên nó sẽ biến mất)
+            drawCanvas();
+        }
+    }
+
+    // --- LOGIC ĐƯA STICKER LÊN TRÊN CÙNG (MỚI THÊM) ---
+    // Hỗ trợ cả phím PageUp hoặc phím ] (giống Photoshop)
+    if (e.key === 'PageUp' || e.key === ']') {
+        
+        // Kiểm tra xem có sticker nào đang được chọn không
+        if (selectedStickerIndex !== -1) {
+            
+            // 1. Cắt sticker đang chọn ra khỏi mảng
+            // Hàm splice trả về một mảng chứa phần tử bị cắt, nên ta thêm [0] để lấy chính cái sticker đó
+            const stickerToMove = stickers.splice(selectedStickerIndex, 1)[0];
+            
+            // 2. Nhét nó vào vị trí cuối cùng của mảng (lớp trên cùng)
+            stickers.push(stickerToMove);
+            
+            // 3. Cập nhật lại vị trí Index đang chọn thành vị trí cuối cùng
+            selectedStickerIndex = stickers.length - 1;
+            
+            // 4. Vẽ lại Canvas
+            drawCanvas();
+        }
+    }
 });

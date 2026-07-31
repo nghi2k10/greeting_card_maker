@@ -169,3 +169,20 @@ canvas {
     border-color: #3498db; /* Đổi màu viền khi hover */
     transform: translateY(-2px); /* Nổi nhẹ lên */
 }
+
+.sticker-gallery {
+    display: flex;
+    gap: 15px;
+    padding: 10px;
+    background: #f0f0f0;
+    border-radius: 8px;
+}
+.sticker-btn {
+    width: 45px;
+    height: 45px;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+.sticker-btn:hover {
+    transform: scale(1.1);
+}
